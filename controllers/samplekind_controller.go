@@ -34,7 +34,6 @@ var log = ctrl.Log.WithName("controllers").WithName("samplekind")
 type SampleKindReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Cache  cache.Cache
 }
 
 //+kubebuilder:rbac:groups=cache.sample.com,resources=samplekinds,verbs=get;list;watch;create;update;patch;delete

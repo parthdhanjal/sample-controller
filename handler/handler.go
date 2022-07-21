@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 
-	cachev1alpha1 "github.com/parthdhanjal/samplecontroller/api/v1alpha1"
+	cachev1alpha1 "github.com/parthdhanjal/sample-controller/api/v1alpha1"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -12,12 +12,6 @@ import (
 const (
 	ownerLabelKey = "ownedby"
 )
-
-type SampleHandler struct {
-	client.Client
-	Scheme *runtime.Scheme
-	Cache  cache.Cache
-}
 
 func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	reqNumPods := instance.Spec.size
