@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"time"
 
 	cachev1alpha1 "github.com/parthdhanjal/sample-controller/api/v1alpha1"
 	core "k8s.io/api/core/v1"
@@ -9,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	log1 "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -20,10 +22,10 @@ type SampleHandler struct {
 	Scheme *runtime.Scheme
 }
 
-var log = log.log.WithName("controllers").WithName("SampleKind")
+var log = log1.Log.WithName("controllers").WithName("SampleKind")
 
 func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
-	reqNumPods := instance.Spec.Size
+	reqNumPods := int(instance.Spec.Size)
 	var podList *core.PodList
 	currentPods := len(podList.Items)
 
@@ -51,14 +53,16 @@ func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance 
 		// Delete Pods
 		log.Info("Deleting existing pods")
 		numOfPods := currentPods - reqNumPods
-		pod = &core.Pod{}
+		pod := &core.Pod{}
 		for i := 0; i < numOfPods; i++ {
-			err := sh.deletePod(ctx, instance, pod)
+			err := sh.deletePod(ctx, pod)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	}
+
+	return sh.success(ctx, instance)
 }
 
 func (sh *SampleHandler) CreatePodDef(prefix, namespace, ownerLabelKey, ownerLabelValue, optionalLabel string) *core.Pod {
@@ -87,8 +91,8 @@ func (sh *SampleHandler) CreatePodDef(prefix, namespace, ownerLabelKey, ownerLab
 	}
 }
 
-func (sh *SampleHandler) addPod(ctx context.Context, instance *cachev1alpha1, pod *core.pod) error {
-	err = ctrl.SetControllerReference(instance, pod, sh.Scheme)
+func (sh *SampleHandler) addPod(ctx context.Context, instance *cachev1alpha1.SampleKind, pod *core.Pod) error {
+	err := ctrl.SetControllerReference(instance, pod, sh.Scheme)
 	if err != nil {
 		return err
 	}
@@ -99,17 +103,31 @@ func (sh *SampleHandler) addPod(ctx context.Context, instance *cachev1alpha1, po
 		return err
 	}
 	log.Info("Started Pod", "name", pod.Name)
+	return nil
 }
 
-func (sh *SampleHandler) deletePod(ctx context.Context, instance *cachev1alpha1.Mykind, pod *core.pod) error {
+func (sh *SampleHandler) deletePod(ctx context.Context, pod *core.Pod) error {
 	podName := pod.Name
 	log.Info("deleting pod", "name", podName)
 	// reflect state in status
-	err = sh.Delete(ctx, pod)
+	err := sh.Delete(ctx, pod)
 	if err != nil {
 		log.Error(err, "error deleting pod")
 		return err
 	}
 
 	return nil
+}
+
+func (sh *SampleHandler) success(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
+	instance.Status.LastUpdate = metav1.Now()
+	instance.Status.Reason = "Success"
+	instance.Status.Status = metav1.StatusSuccess
+
+	updateErr := sh.Status().Update(ctx, instance)
+	if updateErr != nil {
+		log.Info("Error when updating Status")
+		return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
+	}
+	return ctrl.Result{}, nil
 }

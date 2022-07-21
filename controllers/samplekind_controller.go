@@ -20,12 +20,13 @@ import (
 	"context"
 	"fmt"
 
+	cachev1alpha1 "github.com/parthdhanjal/sample-controller/api/v1alpha1"
+	handler "github.com/parthdhanjal/sample-controller/handler"
+	core "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	cachev1alpha1 "github.com/parthdhanjal/sample-controller/api/v1alpha1"
-	handler "github.com/parthdhanjal/sample-controller/handler"
 )
 
 var log = ctrl.Log.WithName("controllers").WithName("samplekind")
@@ -50,12 +51,12 @@ type SampleKindReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *SampleKindReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	//_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
 	fmt.Print("----------------Reconciling----------------")
 	instance := &cachev1alpha1.SampleKind{}
-	err := r.Get(ctx, req.Namespace, instance)
+	err := r.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			log.Info("Requested Resource not found. Resource deletion confirmed")
@@ -65,7 +66,7 @@ func (r *SampleKindReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	return handler.Handle(ctx, instance)
+	return handler.SampleHandler(ctx, instance)
 }
 
 // SetupWithManager sets up the controller with the Manager.
