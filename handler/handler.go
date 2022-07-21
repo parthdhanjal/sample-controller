@@ -20,17 +20,17 @@ const (
 func SampleHandler(client client.Client, scheme *runtime.Scheme) SampleHandlerInterface {
 	return &SampleHandlerStructType{
 		client,
-		scheme,
+		scheme
 	}
+}
+
+type SampleHandlerInterface interface {
+	SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error)
 }
 
 type SampleHandlerStructType struct {
 	client.Client
 	Scheme *runtime.Scheme
-}
-
-type SampleHandlerInterface interface {
-	SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error)
 }
 
 var log = log1.Log.WithName("controllers").WithName("SampleKind")
