@@ -6,12 +6,21 @@ import (
 	cachev1alpha1 "github.com/parthdhanjal/sample-controller/api/v1alpha1"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	ownerLabelKey = "ownedby"
 )
+
+type SampleHandler struct {
+	client.Client
+	Scheme *runtime.Scheme
+}
+
+var log = log.log.WithName("controllers").WithName("SampleKind")
 
 func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	reqNumPods := instance.Spec.size
@@ -32,8 +41,8 @@ func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance 
 				instance.Namespace,
 				ownerLabelKey,
 				instance.Name,
-				instance.Spec.OptionalPodLabel)
-			err = sh.addPod(ctx, instance, pod)
+				instance.Spec.label)
+			err := sh.addPod(ctx, instance, pod)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -43,7 +52,7 @@ func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance 
 		log.Info("Deleting existing pods")
 		numOfPods := currentPods - reqNumPods
 		for i := 0; i < numOfPods; i++ {
-			err = sh.deletePod(ctx, instance, pod)
+			err := sh.deletePod(ctx, instance, pod)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
