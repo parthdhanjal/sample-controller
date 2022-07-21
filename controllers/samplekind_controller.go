@@ -66,7 +66,7 @@ func (r *SampleKindReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	return handler.SampleHandler(ctx, instance)
+	return handler.SampleHandle(ctx, instance)
 }
 
 // SetupWithManager sets up the controller with the Manager.

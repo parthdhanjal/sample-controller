@@ -24,6 +24,21 @@ type SampleHandler struct {
 
 var log = log1.Log.WithName("controllers").WithName("SampleKind")
 
+func (sh *SampleHandler) SampleHandle(ctx context.Context, instance *cachev1alpha1) (ctrl.Result, error) {
+	// if !crInstance.ObjectMeta.DeletionTimestamp.IsZero() {
+	// 	return h.deletionReconciler(ctx, crInstance)
+	// }
+
+	// // Initialize resource
+	// log.Info("Initializing")
+	// if res, err := h.initialize(ctx, crInstance); err != nil {
+	// 	return res, err
+	// }
+
+	// The resource is being created or updated
+	return sh.createOrUpdateReconciler(ctx, crInstance)
+}
+
 func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	reqNumPods := int(instance.Spec.Size)
 	var podList *core.PodList
