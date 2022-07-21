@@ -2,12 +2,15 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	cachev1alpha1 "github.com/parthdhanjal/sample-controller/api/v1alpha1"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,42 +47,48 @@ func (sh *SampleHandlerStructType) SampleHandle(ctx context.Context, instance *c
 }
 
 func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
-	reqNumPods := int(instance.Spec.Size)
-	var podList *core.PodList
-	currentPods := len(podList.Items)
+	//reqNumPods := int(instance.Spec.Size)
 
-	if currentPods == reqNumPods {
-		// Maintain Status
-		log.Info("Pods match. No need to update.")
-	} else if currentPods < reqNumPods {
-		// Create Pods
-		log.Info("Creating new pods")
-		numOfPods := reqNumPods - currentPods
-		for i := 0; i < numOfPods; i++ {
-			prefix := instance.Name
-			pod := sh.CreatePodDef(
-				prefix,
-				instance.Namespace,
-				ownerLabelKey,
-				instance.Name,
-				instance.Spec.Label)
-			err := sh.addPod(ctx, instance, pod)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	} else {
-		// Delete Pods
-		log.Info("Deleting existing pods")
-		numOfPods := currentPods - reqNumPods
-		pod := &core.Pod{}
-		for i := 0; i < numOfPods; i++ {
-			err := sh.deletePod(ctx, pod)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	}
+	//var podList *core.PodList
+	// Get list from GET request
+
+	//currentPods := len(podList.Items)
+	currentPods, err := sh.getRunningPodsOwnedBy(ctx, instance)
+	fmt.Print("----err----", err)
+	fmt.Print("----current----", currentPods)
+
+	// if currentPods == reqNumPods {
+	// 	// Maintain Status
+	// 	log.Info("Pods match. No need to update.")
+	// } else if currentPods < reqNumPods {
+	// 	// Create Pods
+	// 	log.Info("Creating new pods")
+	// 	numOfPods := reqNumPods - currentPods
+	// 	for i := 0; i < numOfPods; i++ {
+	// 		prefix := instance.Name
+	// 		pod := sh.CreatePodDef(
+	// 			prefix,
+	// 			instance.Namespace,
+	// 			ownerLabelKey,
+	// 			instance.Name,
+	// 			instance.Spec.Label)
+	// 		err := sh.addPod(ctx, instance, pod)
+	// 		if err != nil {
+	// 			return ctrl.Result{}, err
+	// 		}
+	// 	}
+	// } else {
+	// 	// Delete Pods
+	// 	log.Info("Deleting existing pods")
+	// 	numOfPods := currentPods - reqNumPods
+	// 	pod := &core.Pod{}
+	// 	for i := 0; i < numOfPods; i++ {
+	// 		err := sh.deletePod(ctx, pod)
+	// 		if err != nil {
+	// 			return ctrl.Result{}, err
+	// 		}
+	// 	}
+	// }
 
 	return sh.success(ctx, instance)
 }
@@ -90,7 +99,7 @@ func (sh *SampleHandlerStructType) CreatePodDef(prefix, namespace, ownerLabelKey
 			GenerateName: prefix + "-",
 			Namespace:    namespace,
 			Labels: map[string]string{
-				"lable":       optionalLabel,
+				"label":       optionalLabel,
 				ownerLabelKey: ownerLabelValue,
 			},
 		},
@@ -149,4 +158,26 @@ func (sh *SampleHandlerStructType) success(ctx context.Context, instance *cachev
 		return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
 	}
 	return ctrl.Result{}, nil
+}
+
+func (sh *SampleHandlerStructType) getRunningPodsOwnedBy(ctx context.Context, instance *cachev1alpha1.SampleKind) (*core.PodList, error) {
+	podList := &core.PodList{}
+	runningPodList := &core.PodList{}
+	ownerReq, _ := labels.NewRequirement(ownerLabelKey, selection.Equals, []string{instance.Name})
+	listOptions := &client.ListOptions{
+		LabelSelector: labels.NewSelector().Add(*ownerReq),
+		Namespace:     instance.Namespace,
+	}
+	err := sh.List(ctx, podList, listOptions)
+	if err != nil {
+		log.Error(err, "error listing pods")
+		return nil, err
+	}
+	// only count pods not scheduled for deletion
+	for _, pod := range podList.Items {
+		if pod.ObjectMeta.DeletionTimestamp.IsZero() {
+			runningPodList.Items = append(runningPodList.Items, pod)
+		}
+	}
+	return runningPodList, nil
 }

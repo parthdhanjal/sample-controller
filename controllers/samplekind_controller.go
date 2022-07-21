@@ -68,6 +68,8 @@ func (r *SampleKindReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
+	// Initialize Client and Scheme
+	fmt.Print("--------------Check 1-----------------")
 	return handler.SampleHandler(r.Client, r.Scheme, r.Cache).SampleHandle(ctx, instance)
 }
 

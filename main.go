@@ -92,6 +92,7 @@ func main() {
 	if err = (&controllers.SampleKindReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Cache:  mgr.GetCache(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SampleKind")
 		os.Exit(1)
