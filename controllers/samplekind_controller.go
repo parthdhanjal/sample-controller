@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -35,6 +36,7 @@ var log = ctrl.Log.WithName("controllers").WithName("samplekind")
 type SampleKindReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Cache  cache.Cache
 }
 
 //+kubebuilder:rbac:groups=cache.sample.com,resources=samplekinds,verbs=get;list;watch;create;update;patch;delete
@@ -66,7 +68,7 @@ func (r *SampleKindReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
-	return handler.SampleHandler(r.Client, r.Scheme).SampleHandle(ctx, instance)
+	return handler.SampleHandler(r.Client, r.Scheme, r.Cache).SampleHandle(ctx, instance)
 }
 
 // SetupWithManager sets up the controller with the Manager.

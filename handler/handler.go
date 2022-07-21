@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	log1 "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -17,10 +18,11 @@ const (
 	ownerLabelKey = "ownedby"
 )
 
-func SampleHandler(client client.Client, scheme *runtime.Scheme) SampleHandlerInterface {
+func SampleHandler(client client.Client, scheme *runtime.Scheme, cache cache.Cache) SampleHandlerInterface {
 	return &SampleHandlerStructType{
 		client,
 		scheme,
+		cache,
 	}
 }
 
@@ -31,6 +33,7 @@ type SampleHandlerInterface interface {
 type SampleHandlerStructType struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Cache  cache.Cache
 }
 
 var log = log1.Log.WithName("controllers").WithName("SampleKind")
