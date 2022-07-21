@@ -17,14 +17,25 @@ const (
 	ownerLabelKey = "ownedby"
 )
 
-type SampleHandler struct {
+func SampleHandler(client client.Client, scheme *runtime.Scheme) SampleHandlerInterface {
+	return &SampleHandlerStructType{
+		client,
+		scheme,
+	}
+}
+
+type SampleHandlerStructType struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
+type SampleHandlerInterface interface {
+	SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind)
+}
+
 var log = log1.Log.WithName("controllers").WithName("SampleKind")
 
-func (sh *SampleHandler) SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
+func (sh *SampleHandlerStructType) SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	// if !crInstance.ObjectMeta.DeletionTimestamp.IsZero() {
 	// 	return h.deletionReconciler(ctx, crInstance)
 	// }
@@ -39,7 +50,7 @@ func (sh *SampleHandler) SampleHandle(ctx context.Context, instance *cachev1alph
 	return sh.createOrUpdateReconciler(ctx, instance)
 }
 
-func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
+func (sh *SampleHandlerStructType) createOrUpdateReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	reqNumPods := int(instance.Spec.Size)
 	var podList *core.PodList
 	currentPods := len(podList.Items)
@@ -80,7 +91,7 @@ func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance 
 	return sh.success(ctx, instance)
 }
 
-func (sh *SampleHandler) CreatePodDef(prefix, namespace, ownerLabelKey, ownerLabelValue, optionalLabel string) *core.Pod {
+func (sh *SampleHandlerStructType) CreatePodDef(prefix, namespace, ownerLabelKey, ownerLabelValue, optionalLabel string) *core.Pod {
 	return &core.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: prefix + "-",
@@ -106,7 +117,7 @@ func (sh *SampleHandler) CreatePodDef(prefix, namespace, ownerLabelKey, ownerLab
 	}
 }
 
-func (sh *SampleHandler) addPod(ctx context.Context, instance *cachev1alpha1.SampleKind, pod *core.Pod) error {
+func (sh *SampleHandlerStructType) addPod(ctx context.Context, instance *cachev1alpha1.SampleKind, pod *core.Pod) error {
 	err := ctrl.SetControllerReference(instance, pod, sh.Scheme)
 	if err != nil {
 		return err
@@ -121,7 +132,7 @@ func (sh *SampleHandler) addPod(ctx context.Context, instance *cachev1alpha1.Sam
 	return nil
 }
 
-func (sh *SampleHandler) deletePod(ctx context.Context, pod *core.Pod) error {
+func (sh *SampleHandlerStructType) deletePod(ctx context.Context, pod *core.Pod) error {
 	podName := pod.Name
 	log.Info("deleting pod", "name", podName)
 	// reflect state in status
@@ -134,7 +145,7 @@ func (sh *SampleHandler) deletePod(ctx context.Context, pod *core.Pod) error {
 	return nil
 }
 
-func (sh *SampleHandler) success(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
+func (sh *SampleHandlerStructType) success(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	instance.Status.LastUpdate = metav1.Now()
 	instance.Status.Reason = "Success"
 	instance.Status.Status = metav1.StatusSuccess
