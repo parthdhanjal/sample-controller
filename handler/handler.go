@@ -20,7 +20,7 @@ const (
 func SampleHandler(client client.Client, scheme *runtime.Scheme) SampleHandlerInterface {
 	return &SampleHandlerStructType{
 		client,
-		scheme
+		scheme,
 	}
 }
 
