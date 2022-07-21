@@ -30,7 +30,7 @@ type SampleHandlerStructType struct {
 }
 
 type SampleHandlerInterface interface {
-	SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind)
+	SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error)
 }
 
 var log = log1.Log.WithName("controllers").WithName("SampleKind")
