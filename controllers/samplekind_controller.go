@@ -73,6 +73,6 @@ func (r *SampleKindReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 func (r *SampleKindReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cachev1alpha1.SampleKind{}).
-		Owns
-	Complete(r)
+		Owns(&core.Pod{}).
+		Complete(r)
 }
