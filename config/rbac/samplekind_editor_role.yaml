@@ -1,0 +1,24 @@
+# permissions for end users to edit samplekinds.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: samplekind-editor-role
+rules:
+- apiGroups:
+  - cache.sample.com
+  resources:
+  - samplekinds
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cache.sample.com
+  resources:
+  - samplekinds/status
+  verbs:
+  - get

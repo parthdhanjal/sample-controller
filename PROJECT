@@ -1,0 +1,19 @@
+domain: sample.com
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: sample-controller
+repo: github.com/parthdhanjal/sample-controller
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: sample.com
+  group: cache
+  kind: SampleKind
+  path: github.com/parthdhanjal/sample-controller/api/v1alpha1
+  version: v1alpha1
+version: "3"
