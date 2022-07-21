@@ -24,7 +24,7 @@ type SampleHandler struct {
 
 var log = log1.Log.WithName("controllers").WithName("SampleKind")
 
-func (sh *SampleHandler) SampleHandle(ctx context.Context, instance *cachev1alpha1) (ctrl.Result, error) {
+func (sh *SampleHandler) SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	// if !crInstance.ObjectMeta.DeletionTimestamp.IsZero() {
 	// 	return h.deletionReconciler(ctx, crInstance)
 	// }
@@ -36,7 +36,7 @@ func (sh *SampleHandler) SampleHandle(ctx context.Context, instance *cachev1alph
 	// }
 
 	// The resource is being created or updated
-	return sh.createOrUpdateReconciler(ctx, crInstance)
+	return sh.createOrUpdateReconciler(ctx, instance)
 }
 
 func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
