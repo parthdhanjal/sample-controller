@@ -87,7 +87,7 @@ func (sh *SampleHandlerStructType) CreatePodDef(prefix, namespace, ownerLabelKey
 			GenerateName: prefix + "-",
 			Namespace:    namespace,
 			Labels: map[string]string{
-				"mykindlabel": optionalLabel,
+				"lable":       optionalLabel,
 				ownerLabelKey: ownerLabelValue,
 			},
 		},
