@@ -23,7 +23,7 @@ type SampleHandler struct {
 var log = log.log.WithName("controllers").WithName("SampleKind")
 
 func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
-	reqNumPods := instance.Spec.size
+	reqNumPods := instance.Spec.Size
 	var podList *core.PodList
 	currentPods := len(podList.Items)
 
@@ -41,7 +41,7 @@ func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance 
 				instance.Namespace,
 				ownerLabelKey,
 				instance.Name,
-				instance.Spec.label)
+				instance.Spec.Label)
 			err := sh.addPod(ctx, instance, pod)
 			if err != nil {
 				return ctrl.Result{}, err
@@ -51,6 +51,7 @@ func (sh *SampleHandler) createOrUpdateReconciler(ctx context.Context, instance 
 		// Delete Pods
 		log.Info("Deleting existing pods")
 		numOfPods := currentPods - reqNumPods
+		pod = &core.Pod{}
 		for i := 0; i < numOfPods; i++ {
 			err := sh.deletePod(ctx, instance, pod)
 			if err != nil {
