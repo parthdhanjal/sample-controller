@@ -3,6 +3,6 @@ kind: SampleKind
 metadata:
   name: samplekind-sample
 spec:
-  size: 8
+  size: 3
   label: "sample"
   # TODO(user): Add fields here
