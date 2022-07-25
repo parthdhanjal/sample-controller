@@ -17,13 +17,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	log1 "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
 	ownerLabelKey = "ownedby"
-	finalizer     = "grp.example.com/finalizer"
+	finalizer     = "grp.sample.com/finalizer"
 )
 
 func SampleHandler(client client.Client, scheme *runtime.Scheme, cache cache.Cache) SampleHandlerInterface {
@@ -47,46 +46,23 @@ type SampleHandlerStructType struct {
 var log = log1.Log.WithName("controllers").WithName("SampleKind")
 
 func (sh *SampleHandlerStructType) SampleHandle(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
-	// Delete Resource based on TimeStamp
-	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
-		return sh.deletionReconciler(ctx, instance)
-	}
 
-	// Initialize resource
+	// Initialize CR
 	log.Info("Initializing")
-	res, err := sh.initialize(ctx, instance)
+	res, err := sh.Initialize(ctx, instance)
 	if err != nil {
 		return res, err
 	}
+
 	// Create Or Delete Pods
 	return sh.createOrDeletePods(ctx, instance)
 }
 
-// Reconciliation of deleted resources
-func (sh *SampleHandlerStructType) deletionReconciler(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
-	// Remove Finalizer if exists
-	if controllerutil.ContainsFinalizer(instance, finalizer) {
-		controllerutil.RemoveFinalizer(instance, finalizer)
-		err := sh.Update(ctx, instance)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
-	// Stop reconciliation as the item is being deleted
-	return ctrl.Result{}, nil
-}
-
-func (sh *SampleHandlerStructType) initialize(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
-	// Convert Instance in case conversion webhook isn't enabled
-	err := instance.ConvertTo()
-	if err != nil {
-		return sh.failure(ctx, instance, err)
-	}
-
-	// Mutate Instance in case mutating webhook isn't enabled
+func (sh *SampleHandlerStructType) Initialize(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	oldSpec := instance.DeepCopy().Spec
-	instance.Default()
+	if instance.Spec.Label == "" {
+		instance.Spec.Label = "default-label"
+	}
 	// check if mutation changed anything
 	if !reflect.DeepEqual(oldSpec, instance.Spec) {
 		log.Info("mutating")
@@ -94,24 +70,25 @@ func (sh *SampleHandlerStructType) initialize(ctx context.Context, instance *cac
 			return sh.failure(ctx, instance, err)
 		}
 	}
-
-	// Validate Instance in case validating webhook isn't enabled
-	// validate creation
-	if err := instance.ValidateCreate(); err != nil {
-		return sh.failure(ctx, instance, err)
-	}
 	return ctrl.Result{}, nil
 }
 
 func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	reqNumPods := int(instance.Spec.Size)
+	currentPods := 0
+	var podList *core.PodList
+	var err error
 
-	//var podList *core.PodList
-	// Get list from GET request
+	if instance.Status.Pods == nil {
+		instance.Status.Pods = make(map[string]core.PodPhase)
+	} else {
+		podList, err = sh.getRunningPodsOwnedBy(ctx, instance)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		currentPods = len(podList.Items)
+	}
 
-	podList, err := sh.getRunningPodsOwnedBy(ctx, instance)
-	currentPods := int(len(podList.Items))
-	fmt.Print("----err----", err)
 	fmt.Print("----reqNumPods----", reqNumPods)
 	fmt.Print("----current----", currentPods)
 
@@ -139,11 +116,16 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 		// Delete Pods
 		log.Info("Deleting existing pods")
 		numOfPods := currentPods - reqNumPods
-		pod := &core.Pod{}
-		for i := 0; i < numOfPods; i++ {
-			err := sh.deletePod(ctx, instance, pod)
-			if err != nil {
-				return ctrl.Result{}, err
+		for _, pod := range podList.Items {
+			if numOfPods > 0 {
+				err = sh.deletePod(ctx, instance, pod.Name)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				numOfPods -= 1
+			} else {
+				// no deletions needed
+				break
 			}
 		}
 	}
@@ -178,7 +160,24 @@ func (sh *SampleHandlerStructType) CreatePodDef(prefix, namespace, ownerLabelKey
 }
 
 func (sh *SampleHandlerStructType) addPod(ctx context.Context, instance *cachev1alpha1.SampleKind, pod *core.Pod) error {
-	err := ctrl.SetControllerReference(instance, pod, sh.Scheme)
+	existingPod := &core.Pod{}
+	err := sh.Get(ctx, types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, existingPod)
+	if err != nil && !errors.IsNotFound(err) {
+		// Pod exists but there is a problem
+		return err
+	}
+
+	// Pod exists
+	if err == nil {
+		log.Info("pod already exists", "name", pod.Name)
+		// reflect state in status
+		instance.Status.Pods[pod.Name] = pod.Status.Phase
+		return nil
+	}
+
+	// Pod does not exist - must be created
+	// Set owner ref so that deleting the CR deletes the created resources
+	err = ctrl.SetControllerReference(instance, pod, sh.Scheme)
 	if err != nil {
 		return err
 	}
@@ -189,27 +188,37 @@ func (sh *SampleHandlerStructType) addPod(ctx context.Context, instance *cachev1
 		return err
 	}
 	log.Info("Started Pod", "name", pod.Name)
+
+	// reflect state in status
+	instance.Status.Pods[pod.Name] = pod.Status.Phase
 	return nil
 }
 
-func (sh *SampleHandlerStructType) deletePod(ctx context.Context, instance *cachev1alpha1.SampleKind, pod *core.Pod) error {
+func (sh *SampleHandlerStructType) deletePod(ctx context.Context, instance *cachev1alpha1.SampleKind, podName string) error {
+	// Check if pod exists
 	existingPod := &core.Pod{}
-	podName := pod.Name
 	err := sh.Get(ctx, types.NamespacedName{Name: podName, Namespace: instance.Namespace}, existingPod)
 	if err != nil && !errors.IsNotFound(err) {
 		// Pod exists but there is a problem
 		return err
 	}
-	log.Info("deleting pod", "name", podName)
-	// reflect state in status
+
+	// Pod exists
 	if err == nil {
-		err := sh.Delete(ctx, existingPod)
+		log.Info("deleting pod", "name", podName)
+		// reflect state in status
+		err = sh.Delete(ctx, existingPod)
 		if err != nil {
 			log.Error(err, "error deleting pod")
 			return err
 		}
+		instance.Status.Pods[podName] = existingPod.Status.Phase
+		return nil
 	}
 
+	// Pod does not exist
+	log.Info("pod has terminated")
+	delete(instance.Status.Pods, podName)
 	return nil
 }
 
@@ -224,19 +233,6 @@ func (sh *SampleHandlerStructType) success(ctx context.Context, instance *cachev
 		return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
 	}
 	return ctrl.Result{}, nil
-}
-
-func (sh *SampleHandlerStructType) failure(ctx context.Context, instance *cachev1alpha1.SampleKind, err error) (ctrl.Result, error) {
-	instance.Status.LastUpdate = metav1.Now()
-	instance.Status.Reason = err.Error()
-	instance.Status.Status = metav1.StatusFailure
-
-	updateErr := sh.Status().Update(ctx, instance)
-	if updateErr != nil {
-		log.Info("Error when updating status. Requeued")
-		return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
-	}
-	return ctrl.Result{}, err
 }
 
 func (sh *SampleHandlerStructType) getRunningPodsOwnedBy(ctx context.Context, instance *cachev1alpha1.SampleKind) (*core.PodList, error) {
@@ -259,4 +255,17 @@ func (sh *SampleHandlerStructType) getRunningPodsOwnedBy(ctx context.Context, in
 		}
 	}
 	return runningPodList, nil
+}
+
+func (sh *SampleHandlerStructType) failure(ctx context.Context, instance *cachev1alpha1.SampleKind, err error) (ctrl.Result, error) {
+	instance.Status.LastUpdate = metav1.Now()
+	instance.Status.Reason = err.Error()
+	instance.Status.Status = metav1.StatusFailure
+
+	updateErr := sh.Status().Update(ctx, instance)
+	if updateErr != nil {
+		log.Info("Error when updating status. Requeued")
+		return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
+	}
+	return ctrl.Result{}, err
 }
