@@ -126,16 +126,16 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 		// Delete Pods
 		log.Info("Deleting existing pods")
 		numOfPods := currentPods - reqNumPods
+		log.Info("Check Point")
 		for _, pod := range podList.Items {
+			fmt.Print("------Check Pod-------", pod)
 			if numOfPods > 0 {
+				fmt.Print("----- Again Check ----")
 				err = sh.deletePod(ctx, instance, pod.Name)
 				if err != nil {
 					return ctrl.Result{}, err
 				}
 				numOfPods -= 1
-			} else {
-				// no deletions needed
-				break
 			}
 		}
 	}
@@ -219,11 +219,10 @@ func (sh *SampleHandlerStructType) deletePod(ctx context.Context, instance *cach
 
 	// Pod exists
 	if err == nil {
-		log.Info("Deleting Pod", podName)
+		log.Info("Deleting Pod")
 		// reflect state in status
 		err = sh.Delete(ctx, existingPod)
 		if err != nil {
-			log.Error(err, "error deleting pod")
 			return err
 		}
 		instance.Status.Pods[podName] = existingPod.Status.Phase
@@ -231,6 +230,7 @@ func (sh *SampleHandlerStructType) deletePod(ctx context.Context, instance *cach
 	}
 
 	// Pod does not exist
+	log.Info("Pod Deleted")
 	delete(instance.Status.Pods, podName)
 	return nil
 }
