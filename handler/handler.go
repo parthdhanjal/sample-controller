@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -88,7 +87,6 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 	var podList *core.PodList
 	var err error
 
-	fmt.Print("------instance------", instance)
 	if instance.Status.Pods == nil {
 		instance.Status.Pods = make(map[string]core.PodPhase)
 	} else {
@@ -98,9 +96,6 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 		}
 		currentPods = len(podList.Items)
 	}
-
-	fmt.Print("----reqNumPods----", reqNumPods)
-	fmt.Print("----current----", currentPods)
 
 	if currentPods == reqNumPods {
 		// Maintain Status
@@ -128,9 +123,7 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 		numOfPods := currentPods - reqNumPods
 		log.Info("Check Point")
 		for _, pod := range podList.Items {
-			fmt.Print("------Check Pod-------", pod)
 			if numOfPods > 0 {
-				fmt.Print("----- Again Check ----")
 				err = sh.deletePod(ctx, instance, pod.Name)
 				if err != nil {
 					return ctrl.Result{}, err
@@ -213,14 +206,14 @@ func (sh *SampleHandlerStructType) deletePod(ctx context.Context, instance *cach
 	existingPod := &core.Pod{}
 	err := sh.Get(ctx, types.NamespacedName{Name: podName, Namespace: instance.Namespace}, existingPod)
 	if err != nil && !errors.IsNotFound(err) {
-		// Pod exists but there is a problem
+		// Pod exists but might be in an error state
 		return err
 	}
 
 	// Pod exists
 	if err == nil {
 		log.Info("Deleting Pod")
-		// reflect state in status
+		// No error on getting pod. Pod Exists. Deleting pod
 		err = sh.Delete(ctx, existingPod)
 		if err != nil {
 			return err
@@ -229,7 +222,6 @@ func (sh *SampleHandlerStructType) deletePod(ctx context.Context, instance *cach
 		return nil
 	}
 
-	// Pod does not exist
 	log.Info("Pod Deleted")
 	delete(instance.Status.Pods, podName)
 	return nil
