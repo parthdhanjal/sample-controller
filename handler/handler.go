@@ -61,13 +61,22 @@ func (sh *SampleHandlerStructType) SampleHandle(ctx context.Context, instance *c
 func (sh *SampleHandlerStructType) Initialize(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
 	oldSpec := instance.DeepCopy().Spec
 	if instance.Spec.Label == "" {
-		instance.Spec.Label = "default-label"
+		instance.Spec.Label = "sample"
 	}
-	// check if mutation changed anything
 	if !reflect.DeepEqual(oldSpec, instance.Spec) {
-		log.Info("mutating")
-		if err := sh.Update(ctx, instance); err != nil {
-			return sh.failure(ctx, instance, err)
+		log.Info("Updating Spec to new spec")
+		err := sh.Update(ctx, instance)
+		if err != nil {
+			instance.Status.LastUpdate = metav1.Now()
+			instance.Status.Reason = err.Error()
+			instance.Status.Status = metav1.StatusFailure
+
+			updateErr := sh.Status().Update(ctx, instance)
+			if updateErr != nil {
+				log.Info("Error when updating status", updateErr)
+				return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
+			}
+			return ctrl.Result{}, err
 		}
 	}
 	return ctrl.Result{}, nil
@@ -79,6 +88,7 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 	var podList *core.PodList
 	var err error
 
+	fmt.Print("------instance------", instance)
 	if instance.Status.Pods == nil {
 		instance.Status.Pods = make(map[string]core.PodPhase)
 	} else {
@@ -130,7 +140,16 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 		}
 	}
 
-	return sh.success(ctx, instance)
+	instance.Status.LastUpdate = metav1.Now()
+	instance.Status.Reason = "Success"
+	instance.Status.Status = metav1.StatusSuccess
+
+	updateErr := sh.Status().Update(ctx, instance)
+	if updateErr != nil {
+		log.Info("Error when updating Status")
+		return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
+	}
+	return ctrl.Result{}, nil
 }
 
 func (sh *SampleHandlerStructType) CreatePodDef(prefix, namespace, ownerLabelKey, ownerLabelValue, optionalLabel string) *core.Pod {
@@ -162,21 +181,16 @@ func (sh *SampleHandlerStructType) CreatePodDef(prefix, namespace, ownerLabelKey
 func (sh *SampleHandlerStructType) addPod(ctx context.Context, instance *cachev1alpha1.SampleKind, pod *core.Pod) error {
 	existingPod := &core.Pod{}
 	err := sh.Get(ctx, types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, existingPod)
-	if err != nil && !errors.IsNotFound(err) {
-		// Pod exists but there is a problem
-		return err
-	}
 
 	// Pod exists
 	if err == nil {
-		log.Info("pod already exists", "name", pod.Name)
+		log.Info("Pod already exists", pod.Name)
 		// reflect state in status
 		instance.Status.Pods[pod.Name] = pod.Status.Phase
 		return nil
 	}
 
-	// Pod does not exist - must be created
-	// Set owner ref so that deleting the CR deletes the created resources
+	// Creating Pod
 	err = ctrl.SetControllerReference(instance, pod, sh.Scheme)
 	if err != nil {
 		return err
@@ -187,7 +201,7 @@ func (sh *SampleHandlerStructType) addPod(ctx context.Context, instance *cachev1
 	if err != nil {
 		return err
 	}
-	log.Info("Started Pod", "name", pod.Name)
+	log.Info("Pod ", pod.Name, " Created")
 
 	// reflect state in status
 	instance.Status.Pods[pod.Name] = pod.Status.Phase
@@ -205,7 +219,7 @@ func (sh *SampleHandlerStructType) deletePod(ctx context.Context, instance *cach
 
 	// Pod exists
 	if err == nil {
-		log.Info("deleting pod", "name", podName)
+		log.Info("Deleting Pod", podName)
 		// reflect state in status
 		err = sh.Delete(ctx, existingPod)
 		if err != nil {
@@ -217,22 +231,8 @@ func (sh *SampleHandlerStructType) deletePod(ctx context.Context, instance *cach
 	}
 
 	// Pod does not exist
-	log.Info("pod has terminated")
 	delete(instance.Status.Pods, podName)
 	return nil
-}
-
-func (sh *SampleHandlerStructType) success(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
-	instance.Status.LastUpdate = metav1.Now()
-	instance.Status.Reason = "Success"
-	instance.Status.Status = metav1.StatusSuccess
-
-	updateErr := sh.Status().Update(ctx, instance)
-	if updateErr != nil {
-		log.Info("Error when updating Status")
-		return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
-	}
-	return ctrl.Result{}, nil
 }
 
 func (sh *SampleHandlerStructType) getRunningPodsOwnedBy(ctx context.Context, instance *cachev1alpha1.SampleKind) (*core.PodList, error) {
@@ -255,17 +255,4 @@ func (sh *SampleHandlerStructType) getRunningPodsOwnedBy(ctx context.Context, in
 		}
 	}
 	return runningPodList, nil
-}
-
-func (sh *SampleHandlerStructType) failure(ctx context.Context, instance *cachev1alpha1.SampleKind, err error) (ctrl.Result, error) {
-	instance.Status.LastUpdate = metav1.Now()
-	instance.Status.Reason = err.Error()
-	instance.Status.Status = metav1.StatusFailure
-
-	updateErr := sh.Status().Update(ctx, instance)
-	if updateErr != nil {
-		log.Info("Error when updating status. Requeued")
-		return ctrl.Result{RequeueAfter: time.Second * 3}, updateErr
-	}
-	return ctrl.Result{}, err
 }
