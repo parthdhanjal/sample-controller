@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"math"
 	"reflect"
 	"time"
 
@@ -82,8 +83,9 @@ func (sh *SampleHandlerStructType) Initialize(ctx context.Context, instance *cac
 }
 
 func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, instance *cachev1alpha1.SampleKind) (ctrl.Result, error) {
-	reqNumPods := int(instance.Spec.Size)
-	currentPods := 0
+	size := float64(instance.Spec.Size)
+	reqNumPods := int64(math.Pow(size, 2))
+	var currentPods int64
 	var podList *core.PodList
 	var err error
 
@@ -94,7 +96,7 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		currentPods = len(podList.Items)
+		currentPods = int64(len(podList.Items))
 	}
 
 	if currentPods == reqNumPods {
@@ -103,7 +105,7 @@ func (sh *SampleHandlerStructType) createOrDeletePods(ctx context.Context, insta
 	} else if currentPods < reqNumPods {
 		// Create Pods
 		log.Info("Creating new pods")
-		numOfPods := reqNumPods - currentPods
+		numOfPods := int(reqNumPods - currentPods)
 		for i := 0; i < numOfPods; i++ {
 			prefix := instance.Name
 			pod := sh.CreatePodDef(
